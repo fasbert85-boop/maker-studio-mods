@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Toskan4134/maker-studio-mods/main/schema/index.schema.json",
+  "title": "Maker Studio Marketplace Registry Index",
+  "description": "Schema for the canonical index.json that the Maker Studio editor fetches to populate its in-app Marketplace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "updatedAt", "mods"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema. Lets editors auto-validate the file."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Format version. Bumping is a breaking change for the editor."
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the last edit. Useful for cache invalidation and debugging."
+    },
+    "mods": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Mod" },
+      "uniqueItems": true
+    }
+  },
+  "definitions": {
+    "Mod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "author", "repo"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]+$",
+          "description": "Reverse-DNS mod id. Must match manifest.json#id. Cannot change once published."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "repo": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+          "description": "GitHub owner/name. Releases are looked up at api.github.com/repos/{repo}/releases/latest."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "maxLength": 24
+          },
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "icon": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "minStudioVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+          "description": "Lowest editor semver this mod supports."
+        },
+        "apiVersion": {
+          "type": "string",
+          "description": "Mod API version (semver or 'X.x' wildcard)."
+        },
+        "pubkey": {
+          "type": "string",
+          "pattern": "^RW[A-Za-z0-9+/=]{40,}$",
+          "description": "Minisign public key (single line). If set, signature verification is MANDATORY at install."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Maintainer-curated quality marker. Independent from signature verification."
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["fs.mod", "fs.project", "fs.write.project", "events.cancel.save", "ui.dialogs", "ui.toasts"]
+          },
+          "uniqueItems": true,
+          "description": "Optional preview of the mod's manifest permissions. Authoritative copy lives inside the mod's manifest.json."
+        }
+      }
+    }
+  }
+}

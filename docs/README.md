@@ -1,0 +1,50 @@
+# Mod API Documentation
+
+Reference docs for everything a mod can do. Mirror of the editor's internal mod-api documentation, published here so authors can browse without needing the editor source.
+
+## Documents
+
+| Document | What you'll learn |
+|----------|-------------------|
+| **[getting-started.md](getting-started.md)** | Write your first mod in five minutes |
+| **[api-reference.md](api-reference.md)** | Every method, type, and ctx surface available to mods |
+| **[events-reference.md](events-reference.md)** | Every event the editor emits, with payload shapes |
+| **[quick-reference.md](quick-reference.md)** | One-page cheat sheet for common API calls |
+| **[api-changelog.md](api-changelog.md)** | What changed in each API version |
+| **[troubleshooting.md](troubleshooting.md)** | Common problems and how to fix them |
+| **[mod-api.d.ts](mod-api.d.ts)** | TypeScript type definitions — drop into your project for IDE autocomplete |
+
+Publishing your mod through the Marketplace? See **[../PUBLISHING.md](../PUBLISHING.md)** at the repo root.
+
+## Using `mod-api.d.ts` in your mod project
+
+If you write your mod in TypeScript (or use VS Code with JS type-checking), grab `mod-api.d.ts` from this folder and reference it for full autocomplete on `ctx`:
+
+```js
+// index.js
+/** @param {import("./mod-api").ModContext} ctx */
+export function activate(ctx) {
+  ctx.ui.showToast({ message: "typed!" });  // ← autocomplete works
+}
+```
+
+Or for TypeScript:
+
+```ts
+// index.ts
+import type { ModContext } from "./mod-api";
+
+export function activate(ctx: ModContext): void {
+  ctx.ui.showToast({ message: "typed!" });
+}
+```
+
+The file is a single self-contained `.d.ts` with no dependencies. Copy it next to your `index.js` / `index.ts`.
+
+## API versioning
+
+`manifest.json#apiVersion` pins your mod to a specific Mod API major version. The editor will refuse to load a mod whose major version doesn't match its own — guaranteeing your mod won't silently break on an editor update. See [api-changelog.md](api-changelog.md) for the history.
+
+## Reporting doc bugs
+
+Open an issue on this repo if a doc is wrong, outdated, or missing something. Doc fixes are welcome via PR.

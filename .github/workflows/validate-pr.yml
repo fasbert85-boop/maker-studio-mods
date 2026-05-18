@@ -1,0 +1,108 @@
+name: Validate registry PR
+
+on:
+  pull_request:
+    paths:
+      - "index.json"
+      - "schema/index.schema.json"
+      - ".github/workflows/validate-pr.yml"
+  push:
+    branches: [main]
+    paths:
+      - "index.json"
+      - "schema/index.schema.json"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Schema + release assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install ajv-cli
+        run: npm install -g ajv-cli@^5 ajv-formats@^3
+
+      - name: Validate index.json against schema
+        run: |
+          ajv validate \
+            -s schema/index.schema.json \
+            -d index.json \
+            --spec=draft7 \
+            -c ajv-formats \
+            --strict=false
+
+      - name: Check for duplicate mod ids
+        run: |
+          node -e "
+            const reg = require('./index.json');
+            const ids = reg.mods.map(m => m.id);
+            const dups = ids.filter((id, i) => ids.indexOf(id) !== i);
+            if (dups.length) {
+              console.error('Duplicate mod ids:', dups.join(', '));
+              process.exit(1);
+            }
+            console.log('No duplicate ids.');
+          "
+
+      - name: Verify each mod's latest release ships the expected assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          fail=0
+          mods_json=$(node -e "console.log(JSON.stringify(require('./index.json').mods))")
+          echo "$mods_json" | node -e '
+            const mods = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            for (const m of mods) console.log(`${m.id}\t${m.repo}\t${m.pubkey ?? ""}`);
+          ' | while IFS=$'\t' read -r id repo pubkey; do
+              echo ""
+              echo "Checking $id ($repo)..."
+              # Fetch the latest release. Returns 404 if no releases.
+              if ! release=$(gh api "repos/$repo/releases/latest" 2>/dev/null); then
+                echo "  WARN: $repo has no published releases yet (acceptable if pre-release)."
+                continue
+              fi
+              tag=$(echo "$release" | node -e "console.log(JSON.parse(require('fs').readFileSync(0,'utf8')).tag_name)")
+              echo "  Latest tag: $tag"
+
+              # Expect one zip asset whose name contains the mod id.
+              has_zip=$(echo "$release" | node -e "
+                const r = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+                const id = process.argv[1];
+                console.log(r.assets.some(a => a.name.toLowerCase().endsWith('.zip') && a.name.includes(id)));
+              " "$id")
+              if [ "$has_zip" != "true" ]; then
+                echo "  FAIL: no .zip asset whose name contains '$id'."
+                fail=1
+                continue
+              fi
+
+              # If pubkey declared, require a .minisig.
+              if [ -n "$pubkey" ]; then
+                has_sig=$(echo "$release" | node -e "
+                  const r = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+                  console.log(r.assets.some(a => a.name.toLowerCase().endsWith('.minisig')));
+                ")
+                if [ "$has_sig" != "true" ]; then
+                  echo "  FAIL: pubkey declared in registry but no .minisig asset on the release."
+                  fail=1
+                  continue
+                fi
+              fi
+
+              echo "  OK"
+            done
+            if [ "$fail" -ne 0 ]; then
+              echo ""
+              echo "One or more entries failed asset checks. See output above."
+              exit 1
+            fi
